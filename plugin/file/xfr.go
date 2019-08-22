@@ -26,6 +26,29 @@ func (x Xfr) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (in
 		return 0, plugin.Error(x.Name(), fmt.Errorf("xfr called with non transfer type: %d", state.QType()))
 	}
 
+	// For IXFR we take the SOA in the IXFR message (if there), compare it what we have and then decide to do an
+	// AXFR or just reply with one SOA message back.
+	if state.QType() == dns.TypeIXFR {
+		serial := uint32(0)
+		x.RLock()
+		if x.Apex.SOA != nil {
+			serial = x.Apex.SOA.Serial
+		}
+		x.RUnlock()
+		// RFC 1995 Section 3: "... and the authority section containing the SOA record of client's version of the zone."
+		if len(r.Ns) == 1 {
+			if soa, ok := r.Ns[0].(*dns.SOA); ok {
+				if soa.Serial == serial { // Section 2, para 4; echo SOA back.
+					m := new(dns.Msg)
+					m.SetReply(r)
+					m.Answer = []dns.RR{soa}
+					w.WriteMsg(m)
+					return 0, nil
+				}
+			}
+		}
+	}
+
 	records := x.All()
 	if len(records) == 0 {
 		return dns.RcodeServerFailure, nil
