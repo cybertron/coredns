@@ -34,6 +34,7 @@ var Directives = []string{
 	"chaos",
 	"loadbalance",
 	"cache",
+	"k8s_node",
 	"rewrite",
 	"dnssec",
 	"autopath",
